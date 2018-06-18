@@ -72,7 +72,7 @@ namespace Subscriptions.Tests
 
                 var newPlan = new PlanAcquisition()
                 {
-                    AcquisitionId = Guid.NewGuid().ToString(),
+                    AcquisitionId = "df462f5d-5345-4ff6-9af9-2ff71984025e",
                     PlanId = plan.Id
                 };
 
