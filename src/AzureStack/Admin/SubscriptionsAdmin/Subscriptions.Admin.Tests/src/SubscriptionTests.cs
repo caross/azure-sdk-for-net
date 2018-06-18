@@ -75,7 +75,7 @@ namespace Subscriptions.Tests
         {
             RunTest((client) =>
             {
-                var subscriptionId = Guid.NewGuid().ToString();
+                var subscriptionId = "a08052b9-4ba8-47d0-be93-4b72a3d672e7";
                 var offer = client.Offers.ListAll().GetFirst();
 
                 var subscription = new Subscription(
@@ -116,10 +116,12 @@ namespace Subscriptions.Tests
             {
                 var offer = client.Offers.Get(TestContext.ResourceGroupName, TestContext.MoveOfferName);
 
+                var subsriptionIds = new[] { "ce4c7fdb-5a38-46f5-8bbc-b8b328a87ab6", "a0d1a71c-0b27-4e73-abfc-169512576f7d", "85d57d7e-c8b4-4ab3-ba62-54b5984fa3c6" };
                 var subscriptions = new Subscription[3];
+
                 for (var i = 0; i < subscriptions.Length; i++)
                 {
-                    var subscriptionId = Guid.NewGuid().ToString();
+                    var subscriptionId = subsriptionIds[i];
                     subscriptions[i]= new Subscription(
                         delegatedProviderSubscriptionId: TestContext.DefaultProviderSubscriptionId,
                         displayName: nameof(MoveSubscriptions) + i,
