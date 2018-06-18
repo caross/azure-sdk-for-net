@@ -5,14 +5,17 @@
 
 using Microsoft.AzureStack.Management.Subscriptions.Admin;
 using Microsoft.AzureStack.Management.Subscriptions.Admin.Models;
+using Subscriptions.Tests.src.Helpers;
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using Xunit;
 
 namespace Subscriptions.Tests
 {
     public class SubscriptionTests : SubscriptionsTestBase
     {
-
         private void ValidateSubscription(Subscription subscription) {
             // Resource
             Assert.NotNull(subscription);
@@ -72,19 +75,17 @@ namespace Subscriptions.Tests
         {
             RunTest((client) =>
             {
-                var subscriptionId = "4FDD5149-B7E6-46E1-AC30-4D7E3AF4B69B";
-                var delProviderSubId = Environment.GetEnvironmentVariable("SubscriptionId");
-                var tenantId = Environment.GetEnvironmentVariable("AADTenant");
+                var subscriptionId = Guid.NewGuid().ToString();
                 var offer = client.Offers.ListAll().GetFirst();
 
                 var subscription = new Subscription(
-                    delegatedProviderSubscriptionId: delProviderSubId,
+                    delegatedProviderSubscriptionId: TestContext.DefaultProviderSubscriptionId,
                     displayName: "Test Subscription",
                     offerId: offer.Id,
-                    owner: "tenantadmin1@msazurestack.onmicrosoft.com",
+                    owner: TestContext.TenantUpn,
                     subscriptionId: subscriptionId,
                     state: SubscriptionState.Enabled,
-                    tenantId: tenantId);
+                    tenantId: TestContext.DirectoryTenantId);
 
                 var result = client.Subscriptions.CreateOrUpdate(
                     subscription: subscriptionId,                    
@@ -105,6 +106,66 @@ namespace Subscriptions.Tests
                     Assert.Equal("Deleted", deletedSubscription.State);
                 }
 
+            });
+        }
+
+        [Fact]
+        public void MoveSubscriptions()
+        {
+            RunTest((client) =>
+            {
+                var offer = client.Offers.Get(TestContext.ResourceGroupName, TestContext.MoveOfferName);
+
+                var subscriptions = new Subscription[3];
+                for (var i = 0; i < subscriptions.Length; i++)
+                {
+                    var subscriptionId = Guid.NewGuid().ToString();
+                    subscriptions[i]= new Subscription(
+                        delegatedProviderSubscriptionId: TestContext.DefaultProviderSubscriptionId,
+                        displayName: nameof(MoveSubscriptions) + i,
+                        offerId: offer.Id,
+                        owner: TestContext.TenantUpn,
+                        subscriptionId: subscriptionId,
+                        state: SubscriptionState.Enabled,
+                        tenantId: TestContext.DirectoryTenantId);
+
+                    var result = client.Subscriptions.CreateOrUpdate(
+                        subscription: subscriptionId,
+                        newSubscription: subscriptions[i]);
+
+                    ValidateSubscription(result);
+                    subscriptions[i] = result;
+                }
+
+                var delegatedProviderOffer = client.DelegatedProviderOffers.Get(
+                    TestContext.DelegatedProviderSubscriptionId,
+                    TestContext.DelegatedProviderOfferName);
+
+                var moveSubscriptionsDefinition = new MoveSubscriptionsDefinition()
+                {
+                    TargetDelegatedProviderOffer = delegatedProviderOffer.Id,
+                    Resources = subscriptions.Select(s => s.Id).ToArray()
+                };
+
+                client.Subscriptions.MoveSubscriptions(moveSubscriptionsDefinition);
+
+                var subscriptionIds = subscriptions.Select(s => s.SubscriptionId);
+                subscriptions = client.Subscriptions.List()
+                    .Where(s => subscriptionIds.Contains(s.SubscriptionId))
+                    .ToArray();
+
+                var expectedOfferId = string.Format(
+                    provider: CultureInfo.InvariantCulture,
+                    format: "/subscriptions/{0}/providers/Microsoft.Subscriptions.Admin/delegatedProviders/{1}/offers/{2}",
+                    arg0: TestContext.DefaultProviderSubscriptionId,
+                    arg1: TestContext.DelegatedProviderSubscriptionId,
+                    arg2: TestContext.DelegatedProviderOfferName);
+
+                foreach (var subscription in subscriptions)
+                {
+                    Assert.Equal(expectedOfferId, subscription.OfferId);
+                    client.Subscriptions.Delete(subscription.SubscriptionId);
+                }
             });
         }
     }
